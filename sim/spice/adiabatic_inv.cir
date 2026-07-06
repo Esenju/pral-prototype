@@ -1,0 +1,70 @@
+* ============================================================
+* Adiabatic CMOS Inverter — Square-wave vs. Sinusoidal Clock
+* Energy comparison experiment
+* ============================================================
+* Standard CMOS:   charge pumped to ground on each 1->0 output
+* Adiabatic CMOS:  charge slowly returned to supply via ramp/sine clock
+*
+* Circuit: simple CMOS inverter (NMOS + PMOS), 180nm models (BSIMv3)
+* Clock:   VCK drives supply rail (power-clock topology)
+* Load:    CL = 10 fF (fanout gate)
+* ============================================================
+
+.title Adiabatic Inverter Energy Comparison
+
+* ── MOSFET models (simplified 180nm BSIM3v3-like) ───────
+.model NMOS180 NMOS level=3 VTO=0.5 KP=270u GAMMA=0.5 PHI=0.7
++                   TOX=4e-9 LD=50n WD=50n
+.model PMOS180 PMOS level=3 VTO=-0.5 KP=90u GAMMA=0.5 PHI=0.7
++                   TOX=4e-9 LD=50n WD=50n
+
+* ── Parameters ───────────────────────────────────────────
+.param VDD=1.0 CL=10f W=500n L=180n T=1n
+
+* ── Subcircuit: standard CMOS inverter ───────────────────
+.subckt inv_std IN OUT VDD VSS
+MP1  OUT IN VDD VDD  PMOS180 W=500n L=180n
+MN1  OUT IN VSS VSS  NMOS180 W=500n L=180n
+.ends inv_std
+
+* ── Subcircuit: adiabatic inverter (power-clock supply) ──
+.subckt inv_adiabatic IN OUT VPCK VSS
+* Power-clock drives PMOS source — supply ramps sinusoidally
+MP1  OUT IN VPCK VPCK  PMOS180 W=500n L=180n
+MN1  OUT IN VSS  VSS   NMOS180 W=500n L=180n
+.ends inv_adiabatic
+
+* ── Standard inverter testbench ──────────────────────────
+XSTD_INV  CLK_BUF  OUT_STD  VDD  0  inv_std
+CL_STD    OUT_STD  0        {CL}
+
+VVDD   VDD  0  DC {VDD}
+VCLK   CLK_BUF  0  PULSE(0 {VDD} 0 20p 20p 450p 1n)
+
+* ── Adiabatic inverter testbench ─────────────────────────
+* Power-clock: sinusoidal at 1 GHz, amplitude = VDD/2, offset = VDD/2
+XADI_INV  CLK_SINE_BUF  OUT_ADI  VPCK  0  inv_adiabatic
+CL_ADI    OUT_ADI  0  {CL}
+
+* Power-clock: sine wave, 0 -> VDD, resonant
+VPCK   VPCK  0  SIN(0.5 0.5 1G 0 0 0)
+VCLK2  CLK_SINE_BUF  0  SIN(0.5 0.5 1G 0 0 0)
+
+* ── Transient analysis ───────────────────────────────────
+.tran 1p 5n
+
+* ── Energy measurement (integrate supply current * Vdd) ──
+.measure tran E_std  integ (-I(VVDD)*V(VDD))  from=1n to=5n
+.measure tran E_adi  integ (-I(VPCK)*V(VPCK))  from=1n to=5n
+
+.control
+  run
+  echo "=== Energy Comparison ==="
+  print E_std E_adi
+  let ratio = E_std / E_adi
+  print ratio
+  plot v(OUT_STD) v(OUT_ADI) title "Output: Standard (blue) vs Adiabatic (green)"
+  plot i(VVDD) i(VPCK) title "Supply Current"
+.endc
+
+.end

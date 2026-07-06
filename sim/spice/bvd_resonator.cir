@@ -1,0 +1,44 @@
+* ============================================================
+* Butterworth-Van Dyke (BVD) Model — AIN FBAR ~1 GHz
+* ============================================================
+* Topology:
+*   Port1 ---+--- Lm --- Rm --- Cm ---+--- Port2
+*            |                        |
+*            +---------- C0 ----------+
+*
+* AIN FBAR typical parameters (1 GHz):
+*   Lm = 100 nH, Cm = 250 aF, Rm = 0.5 Ω, C0 = 2 pF
+*   -> fs = 1/(2*pi*sqrt(Lm*Cm)) ~ 1.006 GHz
+*   -> Q  = 2*pi*fs*Lm/Rm        ~ 1264
+* ============================================================
+
+.title BVD AIN FBAR Resonator
+
+* ── Motional arm ─────────────────────────────────────────
+Lm  port1  n1   100n
+Rm  n1     n2   0.5
+Cm  n2     port2 250a
+
+* ── Parallel capacitance ─────────────────────────────────
+C0  port1  port2  2p
+
+* ── AC source for impedance sweep ────────────────────────
+Vin  port1  0    AC 1
+
+* ── Load (reference port2 to GND) ───────────────────────
+Rload  port2  0  1e9
+
+* ── AC Analysis: sweep 0.9 GHz to 1.1 GHz ───────────────
+.ac dec 1000 0.9G 1.1G
+
+* ── Measure impedance Z = V(port1)/I(Vin) ───────────────
+.measure ac fs_series WHEN V(port1)=0 CROSS=1
+
+.control
+  run
+  plot db(abs(v(port1)/i(Vin))) title "BVD Impedance |Z| (dB)"
+  plot phase(v(port1)/i(Vin))  title "BVD Phase [deg]"
+  print all
+.endc
+
+.end
