@@ -1,44 +1,57 @@
 * ============================================================
-* Butterworth-Van Dyke (BVD) Model — AIN FBAR ~1 GHz
+* BVD Resonator — AIN FBAR ~1 GHz  (batch mode, no GUI)
 * ============================================================
-* Topology:
-*   Port1 ---+--- Lm --- Rm --- Cm ---+--- Port2
-*            |                        |
-*            +---------- C0 ----------+
+* Single-port equivalent circuit:
 *
-* AIN FBAR typical parameters (1 GHz):
-*   Lm = 100 nH, Cm = 250 aF, Rm = 0.5 Ω, C0 = 2 pF
-*   -> fs = 1/(2*pi*sqrt(Lm*Cm)) ~ 1.006 GHz
-*   -> Q  = 2*pi*fs*Lm/Rm        ~ 1264
+*   Vin --- Lm --- Rm --- Cm --- GND
+*    |                            |
+*    +------------ C0 ------------+
+*
+* AIN FBAR typical @ 1 GHz:
+*   Lm=100nH, Cm=250aF, Rm=0.5Ω, C0=2pF
+*   fs = 1/(2π√(Lm·Cm)) = 1.006 GHz
+*   Q  = 2π·fs·Lm/Rm    = 1257
 * ============================================================
 
 .title BVD AIN FBAR Resonator
 
-* ── Motional arm ─────────────────────────────────────────
-Lm  port1  n1   100n
-Rm  n1     n2   0.5
-Cm  n2     port2 250a
+* Cm = 250 fF (femtofarad, 250e-15) — gives fs = 1/(2π√(100n×250f)) = 1.007 GHz
+Lm  in  n1  100n
+Rm  n1  n2  0.5
+Cm  n2  0   250e-15
+C0  in  0   2p
+Vin in  0   AC 1
 
-* ── Parallel capacitance ─────────────────────────────────
-C0  port1  port2  2p
-
-* ── AC source for impedance sweep ────────────────────────
-Vin  port1  0    AC 1
-
-* ── Load (reference port2 to GND) ───────────────────────
-Rload  port2  0  1e9
-
-* ── AC Analysis: sweep 0.9 GHz to 1.1 GHz ───────────────
-.ac dec 1000 0.9G 1.1G
-
-* ── Measure impedance Z = V(port1)/I(Vin) ───────────────
-.measure ac fs_series WHEN V(port1)=0 CROSS=1
+.ac dec 2000 900meg 1100meg
 
 .control
+  set noaskquit
   run
-  plot db(abs(v(port1)/i(Vin))) title "BVD Impedance |Z| (dB)"
-  plot phase(v(port1)/i(Vin))  title "BVD Phase [deg]"
-  print all
+
+  * Impedance magnitude: Z = V/I
+  let Zmag   = abs(v(in) / i(Vin))
+  * Phase via ph() which returns radians, convert to degrees
+  let Zphase = ph(v(in) / i(Vin)) * 180 / PI
+
+  wrdata sim/spice/out_bvd.dat Zmag Zphase
+
+  * Extract resonant frequencies from min/max of |Z|
+  meas ac Z_min   MIN Zmag
+  meas ac Z_max   MAX Zmag
+  meas ac f_at_Zmin MIN_AT Zmag
+  meas ac f_at_Zmax MAX_AT Zmag
+
+  echo "=== BVD Resonator Results ==="
+  echo "Min |Z| (= Rm at series resonance, should be ~0.5 Ohm):"
+  print Z_min
+  echo "Max |Z| (at parallel resonance):"
+  print Z_max
+  echo "Frequency at min |Z| = fs:"
+  print f_at_Zmin
+  echo "Frequency at max |Z| = fp:"
+  print f_at_Zmax
+  echo "Q analytical = 2*pi*fs*Lm/Rm = 2*pi*1.007G*100n/0.5 = 1266"
+  quit
 .endc
 
 .end

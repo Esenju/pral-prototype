@@ -1,0 +1,87 @@
+* ============================================================
+* Energy Comparison: Hard-Switch vs LC Resonant
+* ============================================================
+* Both capacitors pre-charged to 1V (initial conditions).
+* We observe how fast that energy is dissipated in each case.
+*
+* Case A (hard-switch):  CA = 100pF discharges through RA = 50Ω
+*   τ = R·C = 5 ns → all 50 pJ gone within ~25 ns
+*
+* Case B (LC resonant):  CB = 100pF oscillates in LC tank
+*   f₀ = 1MHz, L = 253µH, Rm = 1.59Ω → Q = 1000
+*   Energy decay τ = Q/(π·f₀) = 318 µs
+*   After 20 µs (20 cycles): 94% of energy still in circuit
+*
+* Expected energy dissipated over 20 µs:
+*   Case A: ~50 pJ  (complete discharge in <25 ns)
+*   Case B: ~3.1 pJ  (= 50pJ × (1 - exp(-2π×20/1000)))
+* ============================================================
+
+.title Hard-Switch vs LC Resonant Energy Comparison
+
+* ── Case A: RC discharge ─────────────────────────────────
+RA    outA  0   50
+CA    outA  0   100p
+
+* ── Case B: LC free oscillation ──────────────────────────
+* L = 253µH, C = 100pF → f0 = 1/(2π√(253µ×100p)) = 1.001 MHz
+* Q = 2π×f0×L/Rm = 2π×1M×253µ/1.59 = 1000
+LB    outB  nLB  253u  IC=0
+RB    nLB   0    1.59
+CB    outB  0    100p
+
+* ── Initial conditions: node voltages only, IC= on LB element ─
+.ic v(outA)=1  v(outB)=1
+
+* ── UIC: skip DC op-point, use IC= values on elements ───
+.tran 2n 20u UIC
+
+.print tran v(outA) v(outB)
+
+.control
+  set noaskquit
+  run
+
+  * ── Stored energy in each element vs time ────────────────
+  let E_capA   = 0.5 * 100e-12 * v(outA) * v(outA)
+  let E_capB   = 0.5 * 100e-12 * v(outB) * v(outB)
+  let E_indB   = 0.5 * 253e-6  * i(LB)   * i(LB)
+  let E_totalB = E_capB + E_indB
+
+  * ── Power dissipated in each resistor ────────────────────
+  let Pwr_A  = v(outA) * v(outA) / 50
+  let Pwr_B  = v(nLB)  * v(nLB)  / 1.59
+
+  * ── Cumulative energy dissipated (integ gives running sum) ─
+  let Ediss_A = integ(Pwr_A)
+  let Ediss_B = integ(Pwr_B)
+
+  * ── Export waveforms ──────────────────────────────────────
+  wrdata sim/spice/out_energy.dat v(outA) v(outB) v(nLB)
+  wrdata sim/spice/out_energy2.dat E_capA E_capB E_indB E_totalB
+  wrdata sim/spice/out_ediss.dat Ediss_A Ediss_B
+
+  * ── Print summary ─────────────────────────────────────────
+  echo "=== Energy Comparison Results ==="
+  echo "Initial energy (both circuits): 50 pJ"
+  echo "Simulation window: 20 us  (= 20 LC cycles at 1 MHz)"
+  echo ""
+  echo "--- Final stored energies (pJ) ---"
+  let E_capA_final = 0.5 * 100e-12 * v(outA)[10010] * v(outA)[10010]
+  let E_capB_final = 0.5 * 100e-12 * v(outB)[10010] * v(outB)[10010]
+  let E_indB_final = 0.5 * 253e-6  * i(LB)[10010]   * i(LB)[10010]
+  let E_totB_final = E_capB_final + E_indB_final
+  print E_capA_final
+  print E_capB_final
+  print E_indB_final
+  print E_totB_final
+  echo ""
+  echo "Analytical prediction:"
+  echo "  Case A remaining: ~0 pJ  (RC τ=5ns, all gone by t=25ns)"
+  echo "  Case B remaining: ~47 pJ  (= 50 × exp(-2π×20/1000))"
+  echo "  Case B lost/cycle: ~0.16 pJ  (target: CV^2/Q = 0.05 pJ)"
+
+  quit
+.endc
+
+.end
