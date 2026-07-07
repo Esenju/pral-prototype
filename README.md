@@ -1,4 +1,4 @@
-# PRAL: Piezo-Resonant Adiabatic Logic — Prototype & Experiment Repo
+# PRAL: Piezo-Resonant Adiabatic Logic - Prototype & Experiment Repo
 
 **Based on**: *"PRAL: A Piezo-Resonant Adiabatic Logic Framework for Beyond-CMOS Energy Efficiency"*
 **Author**: Peter E. Mbua et al.
